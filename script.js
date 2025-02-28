@@ -1,19 +1,17 @@
 // --------------------- Variable Declarations -----------
 
- // * Time interval between frequency steps in milliseconds
+// * Time interval between frequency steps in milliseconds
 let stepTime = 125.0;
-
 
 //Glide time for frequency transitions in milliseconds
 
 let glideTime = 10.0;
 
-
 //Array of frequencies for the E♭ minor pentatonic scale
 
 const ebMinPentFreqs = [
-    77.78, 92.50, 103.83, 116.54, 138.59,
-    155.56, 185.00, 207.65, 233.08, 277.18, 311.13
+  77.78, 92.5, 103.83, 116.54, 138.59, 155.56, 185.0, 207.65, 233.08, 277.18,
+  311.13,
 ];
 
 // --------------------- Function Expressions -----------
@@ -23,80 +21,86 @@ const ebMinPentFreqs = [
  * @param {number} linAmp - The linear amplitude value.
  * @returns {number} The corresponding amplitude in dB.
  */
-const dBtoA = function(linAmp) {
-    return Math.pow(10, linAmp / 20);
+const dBtoA = function (linAmp) {
+  return Math.pow(10, linAmp / 20);
 };
 
 /**
  * Enables audio playback by resuming the AudioContext and starting the oscillator.
  */
-const enableAudio = function() {
-    audCtx.resume();
-    sawOsc.start();
-    randoStep();
+const enableAudio = function () {
+  audCtx.resume();
+  sawOsc.start();
+  randoStep();
 };
 
 /**
  * Updates the master gain based on the fader input.
  */
-const updateMasterGain = function() {
-    let amp = dBtoA(fader.value);
-    masterGain.gain.exponentialRampToValueAtTime(amp, audCtx.currentTime + 0.01);
-    faderLabel.innerText = `${fader.value} dBFS`;
+const updateMasterGain = function () {
+  let amp = dBtoA(fader.value);
+  masterGain.gain.exponentialRampToValueAtTime(amp, audCtx.currentTime + 0.01);
+  faderLabel.innerText = `${fader.value} dBFS`;
 };
 
 /**
  * Updates the glide time based on the slider input.
  */
-const updateGlide = function() {
-    glideTime = glideSlider.value;
-    glideLabel.innerText = `${glideSlider.value} ms`;
+const updateGlide = function () {
+  glideTime = glideSlider.value;
+  glideLabel.innerText = `${glideSlider.value} ms`;
 };
 
 /**
  * Updates the step time based on the slider input.
  */
-const updateStepTime = function() {
-    stepTime = stepSlider.value;
-    stepLabel.innerText = `${stepSlider.value} ms`;
+const updateStepTime = function () {
+  stepTime = stepSlider.value;
+  stepLabel.innerText = `${stepSlider.value} ms`;
 };
 
 /**
  * Updates the delay time based on the slider input.
  */
-const updateDelay = function(){
-    delayLabel.innerText = `${delaySlider.value} ms`
-}
+const updateDelay = function () {
+  delayLabel.innerText = `${delaySlider.value} ms`;
+  delay.delayTime.linearRampToValueAtTime(
+    delaySlider.value / 1000,
+    audCtx.currentTime + 0.2
+  );
+};
 /**
  * Updates the feedback amount based on the slider input.
  */
-const updateFeedback= function(){
-    feedbackLabel.innerText = `${feedbackSlider.value} %`
-}
+const updateFeedback = function () {
+  feedbackLabel.innerText = `${feedbackSlider.value} %`;
+  fb.gain.setValueAtTime(feedbackSlider.value / 100, audCtx.currentTime);
+};
 
 /**
  * Updates the cutoff frequency based on the slider input.
  */
-const updateEQ= function(){
-    eqLabel.innerText = `${eqSlider.value} Hz`
-
-}
-
-
+const updateEQ = function () {
+  eqLabel.innerText = `${eqSlider.value} Hz`;
+  filter.frequency.setValueAtTime(eqSlider.value, audCtx.currentTime);
+};
 
 /**
  * Randomly selects a frequency from the E♭ minor pentatonic scale
  * and sets it as the oscillator frequency with exponential glide.
  */
-const randoStep = function() {
-    //This is a formula to find a random integer between zero and the length of the array.
-    //thisis good for getting a random element from the array
-    let randIndex = Math.floor(Math.random() * ebMinPentFreqs.length);
-    let newFreq = ebMinPentFreqs[randIndex];
-    sawOsc.frequency.exponentialRampToValueAtTime(newFreq, audCtx.currentTime + glideTime / 1000);
-    //we haven't covered this yet, but the next line is a form of recursion, "calling the function within itself"
-    //setTimeout is a delay, it waits a certain number of milliseconds to execute the funtion.
-    setTimeout(randoStep, stepTime);
+const randoStep = function () {
+  //This is a formula to find a random integer between zero and the length of the array.
+  //thisis good for getting a random element from the array
+  let randIndex = Math.floor(Math.random() * ebMinPentFreqs.length);
+  let newFreq = ebMinPentFreqs[randIndex];
+  sawOsc.frequency.exponentialRampToValueAtTime(
+    newFreq,
+    audCtx.currentTime + glideTime / 1000
+  );
+  //we haven't covered this yet, but the next line is a form of recursion, "calling the function within itself"
+  //setTimeout is a delay, it waits a certain number of milliseconds to execute the funtion.
+  setTimeout(randoStep, stepTime);
 };
 
 // ------------------------- WebAudio Setup --------------------------
@@ -110,6 +114,20 @@ const audCtx = new AudioContext();
 let sawOsc = audCtx.createOscillator();
 sawOsc.type = "sawtooth";
 
+// ------------------------- Delay Node --------------------------
+let delay = audCtx.createDelay();
+delay.delayTime.setValueAtTime(0.125, audCtx.currentTime);
+
+// ------------------------- Feedback Node --------------------------
+let fb = audCtx.createGain();
+fb.gain.setValueAtTime(0.0, audCtx.currentTime);
+
+// ------------------------- Filter Node --------------------------
+let filter = audCtx.createBiquadFilter();
+filter.type = "lowpass";
+filter.frequency.setValueAtTime(500, audCtx.currentTime);
+filter.Q.value = 20;
+
 // ------------------------- Master Gain --------------------------
 
 /** @type {GainNode} */
@@ -117,7 +135,16 @@ let masterGain = audCtx.createGain();
 masterGain.gain.value = 0.125; // Default to -12 dBFS
 
 // ------------------------- Connections --------------------------
-sawOsc.connect(masterGain);
+sawOsc.connect(filter);
+sawOsc.connect(delay);
+
+delay.connect(fb);
+fb.connect(delay);
+
+delay.connect(filter);
+
+filter.connect(masterGain);
+
 masterGain.connect(audCtx.destination);
 
 // ------------------------- Get HTML Elements --------------------------
